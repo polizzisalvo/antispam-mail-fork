@@ -5,6 +5,7 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.flow.Flow
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
+import net.thunderbird.feature.antispam.AntispamStartup
 import net.thunderbird.legacy.logging.Log
 
 private const val TAG = "K9JobManager"
@@ -14,6 +15,7 @@ class K9JobManager(
     private val accountManager: LegacyAccountManager,
     private val mailSyncWorkerManager: MailSyncWorkerManager,
     private val syncDebugFileLogManager: FileLogLimitWorkManager,
+    private val antispamStartup: AntispamStartup? = null,
 ) {
     fun scheduleDebugLogLimit(contentUriString: String): Flow<WorkInfo?> {
         return syncDebugFileLogManager.scheduleFileLogTimeLimit(contentUriString)
@@ -26,6 +28,7 @@ class K9JobManager(
     fun scheduleAllMailJobs() {
         Log.v(TAG, "scheduling all jobs")
         scheduleMailSync()
+        antispamStartup?.onStart(accountManager.findAll().map { it.id.toString() })
     }
 
     fun scheduleMailSync(account: LegacyAccount) {

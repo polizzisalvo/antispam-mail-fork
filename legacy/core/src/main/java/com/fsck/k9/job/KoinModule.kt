@@ -19,6 +19,7 @@ val jobModule = module {
             accountManager = get(),
             mailSyncWorkerManager = get(),
             syncDebugFileLogManager = get(),
+            antispamStartup = get(),
         )
     }
     factory {

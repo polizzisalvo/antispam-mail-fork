@@ -181,6 +181,10 @@ include(
 )
 
 include(
+    ":feature:antispam",
+)
+
+include(
     ":feature:search:impl-legacy",
 )
 

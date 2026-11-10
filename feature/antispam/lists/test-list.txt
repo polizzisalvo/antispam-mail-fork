@@ -1,0 +1,10 @@
+! Lista di prova CleanMail/Antispam. Una regola per riga, stile EasyList.
+! Per provare: manda a te stesso una mail con oggetto "[test-antispam] ciao".
+! Dovrebbe finire nello Spam, già segnata come letta, senza notifica.
+subject:[test-antispam]
+
+! Esempi (tolgi il "!" per attivarli):
+! ||dominio-pubblicitario-esempio.com^
+! from:newsletter@esempio.it
+! subject:offerta imperdibile
+! @@||dominio-fidato.it^

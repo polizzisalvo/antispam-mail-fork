@@ -20,14 +20,16 @@ import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider
 import net.thunderbird.feature.mail.message.list.LocalMessageUidPrefixProvider
 import net.thunderbird.feature.notification.api.NotificationManager
+import net.thunderbird.feature.antispam.antispamModule
 import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.binds
 import org.koin.dsl.module
 
 val controllerModule = module {
-    // Sostituito dal filtro antispam reale nel passo di cablaggio del modulo feature/antispam.
-    single<IncomingMessageFilter> { IncomingMessageFilter.NONE }
+    includes(antispamModule)
+
+    single<IncomingMessageFilter> { AntispamIncomingMessageFilter(manager = get()) }
 
     single {
         MessagingController(
