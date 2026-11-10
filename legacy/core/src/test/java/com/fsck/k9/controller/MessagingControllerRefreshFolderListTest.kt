@@ -64,6 +64,7 @@ class MessagingControllerRefreshFolderListTest : K9RobolectricTest() {
         ),
         FakeOutboxFolderManager(OUTBOX_FOLDER_ID),
         accountManager,
+        IncomingMessageFilter.NONE,
     )
 
     @After

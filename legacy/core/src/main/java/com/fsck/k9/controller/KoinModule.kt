@@ -26,6 +26,9 @@ import org.koin.dsl.binds
 import org.koin.dsl.module
 
 val controllerModule = module {
+    // Sostituito dal filtro antispam reale nel passo di cablaggio del modulo feature/antispam.
+    single<IncomingMessageFilter> { IncomingMessageFilter.NONE }
+
     single {
         MessagingController(
             get<Context>(),
@@ -44,6 +47,7 @@ val controllerModule = module {
             get<NotificationManager>(),
             get<OutboxFolderManager>(),
             get<LegacyAccountManager>(),
+            get<IncomingMessageFilter>(),
         )
     } binds arrayOf(MessagingControllerRegistry::class)
 

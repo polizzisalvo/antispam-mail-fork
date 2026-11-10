@@ -90,6 +90,7 @@ import net.thunderbird.core.featureflag.FeatureFlagProvider;
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey;
 import net.thunderbird.components.core.logging.Logger;
 import net.thunderbird.feature.account.AccountId;
+import com.fsck.k9.mail.Address;
 import net.thunderbird.feature.mail.folder.api.FolderDetails;
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager;
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManagerKt;
@@ -153,6 +154,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     private final NotificationSenderCompat notificationSender;
     private final NotificationDismisserCompat notificationDismisser;
     private final LegacyAccountManager accountManager;
+    private final IncomingMessageFilter incomingMessageFilter;
 
     private volatile boolean stopped = false;
 
@@ -178,7 +180,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         Logger syncDebugLogger,
         NotificationManager notificationManager,
         OutboxFolderManager outboxFolderManager,
-        LegacyAccountManager accountManager
+        LegacyAccountManager accountManager,
+        IncomingMessageFilter incomingMessageFilter
     ) {
         this.context = context;
         this.notificationController = notificationController;
@@ -196,6 +199,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         this.notificationDismisser = new NotificationDismisserCompat(notificationManager);
         this.outboxFolderManager = outboxFolderManager;
         this.accountManager = accountManager;
+        this.incomingMessageFilter = incomingMessageFilter;
 
         controllerThread = new Thread(new Runnable() {
             @Override
@@ -2025,6 +2029,51 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         }
     }
 
+    /**
+     * Antispam hook. Runs on the sync thread, after the message is stored locally and before any notification.
+     * Moves spam to the Spam (or Trash) folder and marks it as read. Never throws: on any error the message
+     * is left untouched.
+     */
+    private boolean moveToSpamIfNeeded(AccountId accountId, LocalMessage message) {
+        try {
+            LegacyAccount account = accountManager.findById(accountId);
+            if (account == null || !isMoveCapable(accountId)) {
+                return false;
+            }
+
+            LocalFolder folder = message.getFolder();
+            Long inboxFolderId = account.getInboxFolderId();
+            if (inboxFolderId == null || folder.getDatabaseId() != inboxFolderId) {
+                return false; // filtriamo solo la Inbox
+            }
+
+            Long destFolderId = account.getSpamFolderId();
+            if (destFolderId == null) {
+                destFolderId = account.getTrashFolderId();
+            }
+            if (destFolderId == null) {
+                return false;
+            }
+
+            Address[] from = message.getFrom();
+            String fromAddress = (from != null && from.length > 0 && from[0].getAddress() != null)
+                ? from[0].getAddress() : "";
+            String subject = message.getSubject() != null ? message.getSubject() : "";
+            String preview = message.getPreview() != null ? message.getPreview() : "";
+
+            if (!incomingMessageFilter.isSpam(accountId.toString(), subject, fromAddress, preview)) {
+                return false;
+            }
+
+            moveOrCopyMessageSynchronous(accountId, folder.getDatabaseId(),
+                Collections.singletonList(message), destFolderId, MoveOrCopyFlavor.MOVE_AND_MARK_AS_READ);
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, e, "Antispam filter failed, leaving message untouched");
+            return false;
+        }
+    }
+
     public void moveToDraftsFolder(AccountId accountId, long folderId, List<MessageReference> messages) {
         putBackground("moveToDrafts", null, () -> moveToDraftsFolderInBackground(accountId, folderId, messages));
     }
@@ -2936,8 +2985,14 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         public void syncNewMessage(@NotNull String folderServerId, @NotNull String messageServerId,
             boolean isOldMessage) {
 
-            // Send a notification of this message
             LocalMessage message = loadMessage(folderServerId, messageServerId);
+
+            // Antispam: se il messaggio e' spam viene spostato (e segnato come letto) PRIMA di notifica e UI.
+            if (moveToSpamIfNeeded(accountId, message)) {
+                return;
+            }
+
+            // Send a notification of this message
             LocalFolder localFolder = message.getFolder();
             if (!suppressNotifications &&
                 notificationStrategy.shouldNotifyForMessage(accountId, localFolder, message, isOldMessage)) {
