@@ -14,8 +14,8 @@ android {
     namespace = "com.fsck.k9"
 
     defaultConfig {
-        applicationId = "com.fsck.k9"
-        testApplicationId = "com.fsck.k9.tests"
+        applicationId = "it.salvo.spamlessmail"
+        testApplicationId = "it.salvo.spamlessmail.tests"
 
         versionCode = 39004
         versionName = "27.0"
