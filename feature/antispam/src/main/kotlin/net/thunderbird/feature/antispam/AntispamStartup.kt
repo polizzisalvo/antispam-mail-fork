@@ -19,9 +19,8 @@ class AntispamStartup(
         val testListUrl = config.testListUrl ?: return
         scope.launch {
             try {
-                if (!setup.hasList(testListUrl)) {
-                    setup.addCustomList(testListUrl, "Lista di test", accountUuids)
-                }
+                // Idempotente: riusa la lista se esiste e collega gli account già presenti.
+                setup.addCustomList(testListUrl, "Lista di test", accountUuids)
             } catch (_: Exception) {
                 // Non deve mai impedire l'avvio dell'app.
             }

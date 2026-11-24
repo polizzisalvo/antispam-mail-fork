@@ -17,7 +17,7 @@ val antispamModule = module {
     single<AntispamDatabase> { AntispamDatabase.create(get<Context>()) }
     single<AntispamDao> { get<AntispamDatabase>().dao() }
     single { AntispamListDownloader() }
-    single { AntispamFilterManager(dao = get()) }
+    single { AntispamFilterManager(dao = get(), defaultListUrl = get<AntispamConfig>().testListUrl) }
     single {
         AntispamListUpdater(
             dao = get(),

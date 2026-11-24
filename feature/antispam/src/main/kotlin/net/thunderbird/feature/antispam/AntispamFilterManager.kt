@@ -2,10 +2,18 @@ package net.thunderbird.feature.antispam
 
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.runBlocking
+import net.thunderbird.feature.antispam.data.AccountListLinkEntity
 import net.thunderbird.feature.antispam.data.AntispamDao
 import net.thunderbird.feature.antispam.data.RuleType
 
-class AntispamFilterManager(private val dao: AntispamDao) {
+class AntispamFilterManager(
+    private val dao: AntispamDao,
+    /** Lista collegata automaticamente agli account che non ne hanno ancora (finché non c'è la schermata di configurazione). */
+    private val defaultListUrl: String? = null,
+) {
+
+    private val defaultsChecked: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
 
     private class KeywordCache(
         val subject: List<String>,
@@ -32,6 +40,7 @@ class AntispamFilterManager(private val dao: AntispamDao) {
         }
 
     suspend fun isSpamSuspend(accountUuid: String, subject: String, fromAddress: String, bodySnippet: String): Boolean {
+        ensureDefaultList(accountUuid)
         val sender = normalizeAddress(fromAddress)
         val domains = domainChain(sender)
         val subjectLower = subject.lowercase()
@@ -60,6 +69,20 @@ class AntispamFilterManager(private val dao: AntispamDao) {
             domainHits.isNotEmpty() ||
             keywords.subject.any { subjectLower.contains(it) } ||
             keywords.body.any { bodyLower.contains(it) }
+    }
+
+    /**
+     * Un account senza nessuna lista riceve la lista predefinita, una sola volta per avvio dell'app.
+     * Copre gli account aggiunti dopo il primo avvio. Sparirà con la schermata di configurazione.
+     */
+    private suspend fun ensureDefaultList(accountUuid: String) {
+        val url = defaultListUrl ?: return
+        if (!defaultsChecked.add(accountUuid)) return
+        if (dao.getListIdsForAccount(accountUuid).isNotEmpty()) return
+
+        val list = dao.getAllLists().firstOrNull { it.url == url } ?: return
+        dao.insertLinks(listOf(AccountListLinkEntity(accountUuid, list.id)))
+        invalidate()
     }
 
     private suspend fun keywords(accountUuid: String): KeywordCache {
